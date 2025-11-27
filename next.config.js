@@ -1,17 +1,24 @@
 // next.config.js 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Static export disable karein - server needed
+  output: 'standalone',
+  trailingSlash: true,
+  images: {
+    unoptimized: true
+  },
   experimental: {
     serverComponentsExternalPackages: ['bcryptjs', 'pg'],
   },
-  // Add this to handle ES modules properly
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-    };
-    return config;
-  },
+  // API routes ko allow karein
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: '/api/:path*',
+      },
+    ]
+  }
 }
 
 module.exports = nextConfig
