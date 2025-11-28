@@ -1,4 +1,4 @@
-// app/dashboard/page.tsx
+// app/dashboard/page.tsx 
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [generatedProposal, setGeneratedProposal] = useState('')
   const [proposalLoading, setProposalLoading] = useState(false)
   const [sendingProposal, setSendingProposal] = useState(false)
+  const [savingProposal, setSavingProposal] = useState(false)
   const [proposalGenerated, setProposalGenerated] = useState(false)
 
   const [stats, setStats] = useState({
@@ -54,12 +55,12 @@ export default function Dashboard() {
     successRate: 12
   })
 
-  // Professional jobs data (same as before)
+  // Professional jobs data
   const professionalJobs: Job[] = [
     {
       id: "job_001",
       title: "Architect Needed for Tactile Design on Floor Plan",
-      description: "We are looking for an experienced architect to create tactile designs for floor plans. The project involves creating accessible designs for visually impaired individuals. The ideal candidate should have experience in architectural design and understanding of accessibility requirements.",
+      description: "We are looking for an experienced architect to create tactile designs for floor plans. The project involves creating accessible designs for visually impaired individuals.",
       budget: "$15.0-30.0 USD",
       postedDate: "Nov 21, 2025 3:13 PM",
       client: {
@@ -75,7 +76,25 @@ export default function Dashboard() {
       category: "Design & Creative",
       duration: "1-3 months"
     },
-    // ... rest of the jobs data (same as before)
+    {
+      id: "job_002", 
+      title: "Full Stack Developer Needed for E-commerce Platform",
+      description: "Looking for experienced full stack developer to build e-commerce platform with React, Node.js and MongoDB.",
+      budget: "$35.0-70.0 USD",
+      postedDate: "Nov 21, 2025 2:45 PM",
+      client: {
+        name: "Tech Solutions LLC",
+        rating: 4.9,
+        country: "United States", 
+        totalSpent: 18000,
+        totalHires: 32
+      },
+      skills: ["React", "Node.js", "MongoDB", "E-commerce"],
+      proposals: 23,
+      verified: true,
+      category: "Web Development",
+      duration: "2-4 months"
+    }
   ]
 
   useEffect(() => {
@@ -125,15 +144,13 @@ export default function Dashboard() {
     setGeneratedProposal('')
   }
 
-  // Generate AI Proposal (same as before)
+  // Generate AI Proposal
   const generateAIProposal = async () => {
     if (!selectedJob) return
 
     setProposalLoading(true)
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 2500))
-
       const response = await fetch('/api/proposals/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,7 +172,11 @@ export default function Dashboard() {
         // Fallback mock proposal
         setGeneratedProposal(`Dear ${selectedJob.client.name},
 
-I am excited to apply for your "${selectedJob.title}" position. With my extensive experience in ${selectedJob.skills.slice(0, 2).join(' and ')}, I am confident I can deliver exceptional results.
+I am excited to apply for your "${selectedJob.title}" position. With my extensive experience in ${selectedJob.skills.slice(0, 2).join(' and ')}, I am confident I can deliver exceptional results for your project.
+
+I have successfully completed similar projects where I [mention relevant achievement]. My approach focuses on [key methodology] to ensure [desired outcome].
+
+I would be happy to discuss how I can contribute to your project's success. Please let me know a convenient time for a quick call.
 
 Best regards,
 ${user?.name || 'Professional Freelancer'}`)
@@ -167,6 +188,10 @@ ${user?.name || 'Professional Freelancer'}`)
 
 I am writing to express my interest in your project "${selectedJob?.title}".
 
+Based on the requirements, I believe my skills in ${selectedJob?.skills.slice(0, 2).join(' and ')} are a perfect match for this role.
+
+Looking forward to discussing this opportunity further.
+
 Best regards,
 ${user?.name || 'Professional Freelancer'}`)
       setProposalGenerated(true)
@@ -175,52 +200,110 @@ ${user?.name || 'Professional Freelancer'}`)
     }
   }
 
-  // Send Proposal Function (same as before)
+  // ✅ UPDATED: Save Proposal to History - Duplicate Check
+  const handleSaveProposal = async () => {
+    if (!selectedJob || !generatedProposal) return
+
+    setSavingProposal(true)
+    
+    try {
+      const response = await fetch('/api/proposals/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: selectedJob.id,
+          jobTitle: selectedJob.title,
+          jobDescription: selectedJob.description,
+          clientInfo: selectedJob.client,
+          budget: selectedJob.budget,
+          skills: selectedJob.skills,
+          proposalText: generatedProposal,
+          status: 'saved'
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        alert(data.message || '✅ Proposal saved to history successfully!')
+      } else {
+        alert(data.error || 'Failed to save proposal')
+      }
+    } catch (error) {
+      console.error('Proposal save error:', error)
+      alert('Failed to save proposal. Please try again.')
+    } finally {
+      setSavingProposal(false)
+    }
+  }
+
+  // ✅ UPDATED: Send Proposal Function - Duplicate Check
   const sendProposal = async () => {
     if (!selectedJob || !generatedProposal) return
 
     setSendingProposal(true)
     
     try {
-      const response = await fetch('/api/proposals/send', {
+      // ✅ PEHLE HISTORY MEIN SAVE/UPDATE KAREN
+      const saveResponse = await fetch('/api/proposals/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId: selectedJob.id,
           jobTitle: selectedJob.title,
+          jobDescription: selectedJob.description,
+          clientInfo: selectedJob.client,
+          budget: selectedJob.budget,
+          skills: selectedJob.skills,
           proposalText: generatedProposal,
-          originalProposal: generatedProposal,
-          editReason: 'User reviewed and sent'
+          status: 'sent'
         })
       })
 
-      if (response.ok) {
-        alert('✅ Proposal sent successfully! AI has learned from this submission.')
-        setShowPopup(false)
-        setSelectedJob(null)
-        setGeneratedProposal('')
-        setProposalGenerated(false)
-        
-        setStats(prev => ({
-          ...prev,
-          proposalsSent: prev.proposalsSent + 1
-        }))
+      const saveData = await saveResponse.json()
+
+      if (saveResponse.ok && saveData.success) {
+        // ✅ PHIR SEND KAREN (Real Upwork API integration ke liye)
+        const sendResponse = await fetch('/api/proposals/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobId: selectedJob.id,
+            jobTitle: selectedJob.title,
+            proposalText: generatedProposal,
+            originalProposal: generatedProposal,
+            editReason: 'User reviewed and sent'
+          })
+        })
+
+        const sendData = await sendResponse.json()
+
+        if (sendResponse.ok && sendData.success) {
+          alert('✅ Proposal sent successfully! Saved to history.')
+          setShowPopup(false)
+          setSelectedJob(null)
+          setGeneratedProposal('')
+          setProposalGenerated(false)
+          
+          // Update stats
+          setStats(prev => ({
+            ...prev,
+            proposalsSent: prev.proposalsSent + 1
+          }))
+        } else {
+          alert(sendData.error || 'Proposal sent (demo mode)! Saved to history.')
+          setShowPopup(false)
+          setStats(prev => ({
+            ...prev,
+            proposalsSent: prev.proposalsSent + 1
+          }))
+        }
       } else {
-        alert('Proposal sent (demo mode)! AI training data saved.')
-        setShowPopup(false)
-        setStats(prev => ({
-          ...prev,
-          proposalsSent: prev.proposalsSent + 1
-        }))
+        throw new Error(saveData.error || 'Failed to save proposal')
       }
     } catch (error) {
       console.error('Proposal send error:', error)
-      alert('Proposal sent successfully in demo mode!')
-      setShowPopup(false)
-      setStats(prev => ({
-        ...prev,
-        proposalsSent: prev.proposalsSent + 1
-      }))
+      alert('Failed to send proposal. Please try again.')
     } finally {
       setSendingProposal(false)
     }
@@ -277,7 +360,7 @@ ${user?.name || 'Professional Freelancer'}`)
           </div>
         </div>
 
-        {/* Main Content - Now Full Width */}
+        {/* Main Content */}
         <div className="grid grid-cols-1 gap-6">
           <div className="card">
             <div className="p-6 border-b border-gray-200">
@@ -350,7 +433,7 @@ ${user?.name || 'Professional Freelancer'}`)
                         </div>
                       </div>
 
-                      {/* ONLY GENERATE PROPOSAL BUTTON */}
+                      {/* GENERATE PROPOSAL BUTTON */}
                       <div className="flex flex-col sm:flex-row lg:flex-col gap-2 min-w-[140px]">
                         <button 
                           onClick={() => handleGenerateProposalClick(job)}
@@ -369,7 +452,7 @@ ${user?.name || 'Professional Freelancer'}`)
         </div>
       </div>
 
-      {/* Animated Proposal Popup (same as before) */}
+      {/* Animated Proposal Popup */}
       {showPopup && selectedJob && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-end z-50">
           <div 
@@ -377,7 +460,7 @@ ${user?.name || 'Professional Freelancer'}`)
               showPopup ? 'translate-x-0' : 'translate-x-full'
             } overflow-y-auto shadow-2xl`}
           >
-            {/* Popup content (same as before) */}
+            {/* Popup content */}
             <div className="p-6 border-b border-gray-200 sticky top-0 bg-white">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-gray-900">Job Details</h2>
@@ -460,6 +543,7 @@ ${user?.name || 'Professional Freelancer'}`)
                     placeholder="AI generated proposal will appear here..."
                   />
                   
+                  {/* ✅ UPDATED BUTTONS - Save Button Add Kiya */}
                   <div className="mt-4 flex gap-3">
                     <button 
                       onClick={() => {
@@ -470,6 +554,23 @@ ${user?.name || 'Professional Freelancer'}`)
                     >
                       Regenerate
                     </button>
+                    
+                    {/* ✅ SAVE BUTTON */}
+                    <button 
+                      onClick={handleSaveProposal}
+                      disabled={savingProposal || !generatedProposal.trim()}
+                      className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                    >
+                      {savingProposal ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        '💾 Save'
+                      )}
+                    </button>
+                    
                     <button 
                       onClick={sendProposal}
                       disabled={sendingProposal || !generatedProposal.trim()}

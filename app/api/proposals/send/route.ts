@@ -13,22 +13,51 @@ export async function POST(request: NextRequest) {
 
     const { jobId, jobTitle, proposalText, originalProposal, editReason } = await request.json()
 
-    if (!proposalText) {
-      return NextResponse.json({ error: 'Proposal text is required' }, { status: 400 })
+    if (!proposalText || !jobId) {
+      return NextResponse.json({ error: 'Proposal text and Job ID are required' }, { status: 400 })
     }
 
-    console.log('💾 Saving and training AI with proposal for job:', jobTitle)
+    console.log('💾 Saving and sending proposal for job:', jobTitle)
+    console.log('🎯 Job ID:', jobId)
 
-    // Save the main proposal
-    const proposalResult = await pool.query(
-      `INSERT INTO proposals 
-       (user_id, job_id, job_title, generated_proposal, edited_proposal, status, sent_at, created_at) 
-       VALUES ($1, $2, $3, $4, $5, 'sent', NOW(), NOW()) 
-       RETURNING id`,
-      [user.id, jobId, jobTitle, originalProposal, proposalText]
+    // ✅ PEHLE CHECK KAREIN KE SAME JOB KA PROPOSAL PEHLE SE HAI YA NAHI
+    const existingProposal = await pool.query(
+      `SELECT id, status FROM proposals WHERE user_id = $1 AND job_id = $2`,
+      [user.id, jobId]
     )
 
-    const proposalId = proposalResult.rows[0].id
+    let proposalId: number
+    let isUpdate = false
+
+    if (existingProposal.rows.length > 0) {
+      // ✅ UPDATE EXISTING PROPOSAL
+      isUpdate = true
+      proposalId = existingProposal.rows[0].id
+      
+      await pool.query(
+        `UPDATE proposals SET 
+          edited_proposal = $1,
+          status = 'sent',
+          sent_at = NOW(),
+          updated_at = NOW()
+         WHERE id = $2 AND user_id = $3`,
+        [proposalText, proposalId, user.id]
+      )
+      
+      console.log('✅ Existing proposal updated and sent with ID:', proposalId)
+    } else {
+      // ✅ NAYA PROPOSAL CREATE KAREIN
+      const proposalResult = await pool.query(
+        `INSERT INTO proposals 
+         (user_id, job_id, job_title, generated_proposal, edited_proposal, status, sent_at, created_at) 
+         VALUES ($1, $2, $3, $4, $5, 'sent', NOW(), NOW()) 
+         RETURNING id`,
+        [user.id, jobId, jobTitle, originalProposal, proposalText]
+      )
+      
+      proposalId = proposalResult.rows[0].id
+      console.log('✅ New proposal sent with ID:', proposalId)
+    }
 
     // Save edit for AI training if there are changes
     if (originalProposal !== proposalText) {
@@ -46,16 +75,26 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true,
-      message: '✅ Proposal sent successfully! AI will learn from your edits.',
+      message: isUpdate ? '✅ Proposal updated and sent successfully!' : '✅ Proposal sent successfully!',
       proposalId: proposalId,
       trained: originalProposal !== proposalText
     })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error('Proposal sending error:', error)
+  } catch (error: unknown) {
+    console.error('❌ Proposal sending error:', error)
+    
+    let errorMessage = 'Failed to send proposal'
+    if (error instanceof Error) {
+      errorMessage = `Failed to send proposal: ${error.message}`
+    } else if (typeof error === 'string') {
+      errorMessage = `Failed to send proposal: ${error}`
+    } else {
+      errorMessage = 'Failed to send proposal: Unknown error occurred'
+    }
+
     return NextResponse.json({ 
-      error: 'Failed to send proposal: ' + error.message 
+      success: false,
+      error: errorMessage 
     }, { status: 500 })
   }
 }
@@ -72,7 +111,6 @@ async function analyzeProposalEdits(original: string, edited: string): Promise<s
   if (edited.includes('$') || edited.includes('budget')) patterns.push('user_discusses_budget')
   if (edited.includes('experience') && !original.includes('experience')) patterns.push('user_emphasizes_experience')
   if (edited.includes('specific') || edited.includes('detailed')) patterns.push('user_prefers_specificity')
-  if ((edited.match(/I/g) || []).length > (original.match(/I/g) || []).length) patterns.push('user_increases_personal_references')
   
   // Tone analysis
   if (edited.includes('excited') || edited.includes('enthusiastic')) patterns.push('user_prefers_enthusiastic_tone')

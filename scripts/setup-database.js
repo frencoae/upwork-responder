@@ -1,9 +1,10 @@
+// scripts/setup-database.js 
 import { Pool } from 'pg';
 
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'upwork_assistant',
+  database: 'upwork_assistant', 
   password: 'postgres',
   port: 5432,
 });
@@ -41,26 +42,31 @@ async function setupDatabase() {
     `);
     console.log('✅ Sessions table created/verified');
 
-    // Proposals table
+    // Proposals table - COMPLETE UPDATE
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS proposals (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        job_id VARCHAR(255),
-        job_title TEXT,
-        job_description TEXT,
-        generated_proposal TEXT,
-        edited_proposal TEXT,
-        status VARCHAR(50) DEFAULT 'draft',
-        ai_model VARCHAR(100),
-        temperature DECIMAL(3,2),
-        sent_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  CREATE TABLE IF NOT EXISTS proposals (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    job_id VARCHAR(255),
+    job_title TEXT,
+    job_description TEXT,
+    client_info JSONB DEFAULT '{}',
+    budget VARCHAR(100),
+    skills TEXT[] DEFAULT '{}',
+    generated_proposal TEXT,
+    edited_proposal TEXT,
+    status VARCHAR(50) DEFAULT 'draft',
+    ai_model VARCHAR(100),
+    temperature DECIMAL(3,2),
+    sent_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, job_id)  -- ✅ YEH NAYA LINE ADD KAREIN
+  )
+`);
     console.log('✅ Proposals table created/verified');
 
-    // Proposal edits table
+    // Proposal edits table for AI training
     await pool.query(`
       CREATE TABLE IF NOT EXISTS proposal_edits (
         id SERIAL PRIMARY KEY,
@@ -75,7 +81,7 @@ async function setupDatabase() {
     `);
     console.log('✅ Proposal edits table created/verified');
 
-    // Prompt settings table - FIXED
+    // Prompt settings table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS prompt_settings (
         id SERIAL PRIMARY KEY,
@@ -110,7 +116,8 @@ async function setupDatabase() {
         access_token TEXT,
         refresh_token TEXT,
         upwork_user_id VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('✅ Upwork accounts table created/verified');

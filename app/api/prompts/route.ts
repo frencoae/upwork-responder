@@ -13,8 +13,22 @@ export async function GET() {
 
     console.log('📝 Loading prompts for user:', user.id)
 
-    // Always return default settings for now
-    const settings = getDefaultSettings()
+    const result = await pool.query(
+      'SELECT basic_info, validation_rules, proposal_templates, ai_settings FROM prompt_settings WHERE user_id = $1',
+      [user.id]
+    )
+
+    let settings = getDefaultSettings()
+    
+    if (result.rows.length > 0) {
+      const dbSettings = result.rows[0]
+      settings = {
+        basicInfo: dbSettings.basic_info || settings.basicInfo,
+        validationRules: dbSettings.validation_rules || settings.validationRules,
+        proposalTemplates: dbSettings.proposal_templates || settings.proposalTemplates,
+        aiSettings: dbSettings.ai_settings || settings.aiSettings
+      }
+    }
     
     console.log('✅ Prompts loaded successfully for user:', user.id)
     
@@ -43,22 +57,22 @@ export async function POST(request: NextRequest) {
 
     console.log('💾 Saving prompts for user:', user.id)
 
-    // ✅ SIMPLE FIX: Direct JSON stringify use karein
-    const basicInfo = JSON.stringify(settings.basicInfo || getDefaultSettings().basicInfo)
-    const validationRules = JSON.stringify(settings.validationRules || getDefaultSettings().validationRules)
-    const proposalTemplates = JSON.stringify(settings.proposalTemplates || getDefaultSettings().proposalTemplates)
-    const aiSettings = JSON.stringify(settings.aiSettings || getDefaultSettings().aiSettings)
+    // ✅ PROPER JSON handling
+    const basicInfo = settings.basicInfo || getDefaultSettings().basicInfo
+    const validationRules = settings.validationRules || getDefaultSettings().validationRules
+    const proposalTemplates = settings.proposalTemplates || getDefaultSettings().proposalTemplates
+    const aiSettings = settings.aiSettings || getDefaultSettings().aiSettings
 
     try {
       await pool.query(
         `INSERT INTO prompt_settings (user_id, basic_info, validation_rules, proposal_templates, ai_settings) 
-         VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb) 
+         VALUES ($1, $2, $3, $4, $5) 
          ON CONFLICT (user_id) 
          DO UPDATE SET 
-           basic_info = $2::jsonb, 
-           validation_rules = $3::jsonb, 
-           proposal_templates = $4::jsonb, 
-           ai_settings = $5::jsonb,
+           basic_info = $2, 
+           validation_rules = $3, 
+           proposal_templates = $4, 
+           ai_settings = $5,
            updated_at = CURRENT_TIMESTAMP`,
         [user.id, basicInfo, validationRules, proposalTemplates, aiSettings]
       )
@@ -69,27 +83,20 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Prompt settings saved successfully' 
       })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (dbError: any) {
+    } catch (dbError) {
       console.error('Database save error:', dbError)
-      
-      // Even if save fails, return success - don't break user experience
-      console.log('⚠️ Database save failed, but continuing...')
       return NextResponse.json({ 
-        success: true,
-        message: 'Settings processed (database save skipped)' 
-      })
+        success: false,
+        error: 'Failed to save settings to database' 
+      }, { status: 500 })
     }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
+  } catch (error) {
     console.error('Prompts POST error:', error)
-    
-    // Always return success to prevent UI breaking
     return NextResponse.json({ 
-      success: true,
-      message: 'Settings processed successfully' 
-    })
+      success: false,
+      error: 'Internal server error' 
+    }, { status: 500 })
   }
 }
 
