@@ -116,5 +116,11 @@ async function analyzeProposalEdits(original: string, edited: string): Promise<s
   if (edited.includes('excited') || edited.includes('enthusiastic')) patterns.push('user_prefers_enthusiastic_tone')
   if (edited.includes('professional') || edited.includes('expertise')) patterns.push('user_emphasizes_professionalism')
   
+  // Language style patterns
+  if (edited.includes('I understand') || edited.includes('I notice')) patterns.push('user_prefers_empathic_language')
+  if (edited.includes('solution') || edited.includes('solve')) patterns.push('user_focuses_on_solutions')
+  if (edited.includes('quick') || edited.includes('fast')) patterns.push('user_emphasizes_speed')
+  if (edited.includes('quality') || edited.includes('excellence')) patterns.push('user_emphasizes_quality')
+  
   return patterns
 }

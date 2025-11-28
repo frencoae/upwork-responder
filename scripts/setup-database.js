@@ -42,28 +42,28 @@ async function setupDatabase() {
     `);
     console.log('✅ Sessions table created/verified');
 
-    // Proposals table - COMPLETE UPDATE
+    // Proposals table - COMPLETE WITH DUPLICATE PREVENTION
     await pool.query(`
-  CREATE TABLE IF NOT EXISTS proposals (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    job_id VARCHAR(255),
-    job_title TEXT,
-    job_description TEXT,
-    client_info JSONB DEFAULT '{}',
-    budget VARCHAR(100),
-    skills TEXT[] DEFAULT '{}',
-    generated_proposal TEXT,
-    edited_proposal TEXT,
-    status VARCHAR(50) DEFAULT 'draft',
-    ai_model VARCHAR(100),
-    temperature DECIMAL(3,2),
-    sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, job_id)  -- ✅ YEH NAYA LINE ADD KAREIN
-  )
-`);
+      CREATE TABLE IF NOT EXISTS proposals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        job_id VARCHAR(255),
+        job_title TEXT,
+        job_description TEXT,
+        client_info JSONB DEFAULT '{}',
+        budget VARCHAR(100),
+        skills TEXT[] DEFAULT '{}',
+        generated_proposal TEXT,
+        edited_proposal TEXT,
+        status VARCHAR(50) DEFAULT 'draft',
+        ai_model VARCHAR(100),
+        temperature DECIMAL(3,2),
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, job_id)  -- ✅ DUPLICATE PREVENTION
+      )
+    `);
     console.log('✅ Proposals table created/verified');
 
     // Proposal edits table for AI training

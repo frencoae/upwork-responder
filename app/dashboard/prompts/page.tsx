@@ -147,6 +147,9 @@ Focus on client's pain points and how you can solve them.`
         const data = await response.json()
         if (data.settings) {
           setSettings(data.settings)
+          console.log('✅ Settings loaded from database')
+        } else {
+          console.log('ℹ️ Using default settings')
         }
       }
     } catch (error) {
@@ -156,6 +159,8 @@ Focus on client's pain points and how you can solve them.`
 
   const saveSettings = async () => {
     setSaving(true);
+    setSaveErrorMessage('');
+    
     try {
       const response = await fetch('/api/prompts', {
         method: 'POST',
@@ -285,7 +290,7 @@ Focus on client's pain points and how you can solve them.`
               Prompts & Configuration
             </h1>
             <p className="text-gray-600">
-              Manage your feed configurations and AI prompts
+              Manage your feed configurations and AI prompts for better proposal generation
             </p>
           </div>
 
@@ -516,10 +521,10 @@ Focus on client's pain points and how you can solve them.`
                   <div className="space-y-6">
                     {settings.proposalTemplates.map((template, index) => (
                       <div key={template.id} className="border border-gray-200 rounded-lg p-6 relative">
-                        {/* Delete Button with bottom margin */}
+                        {/* Delete Button */}
                         <button
                           onClick={() => deleteTemplate(template.id)}
-                          className="absolute top-6 right-6 mb-100 text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50 transition-colors"
+                          className="absolute top-6 right-6 text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50 transition-colors"
                           title="Delete Template"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
