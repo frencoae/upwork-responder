@@ -1,21 +1,25 @@
-// next.config.js 
+// next.config.js - COMPLETE UPDATE
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Static export disable karein - server needed
   output: 'standalone',
   trailingSlash: true,
   images: {
-    unoptimized: true
+    unoptimized: true,
+    domains: ['localhost', '192.168.1.72'] // APNA IP ADD KAREIN
   },
   experimental: {
     serverComponentsExternalPackages: ['bcryptjs', 'pg'],
   },
-  // API routes ko allow karein
-  async rewrites() {
+  // ✅ NETWORK ACCESS KE LIYE YE ADD KAREIN
+  async headers() {
     return [
       {
-        source: '/api/:path*',
-        destination: '/api/:path*',
+        source: '/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
       },
     ]
   }

@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '../../../../lib/auth'
 import pool from '../../../../lib/database'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // GET - Load proposal history
 export async function GET() {

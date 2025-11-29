@@ -1,8 +1,16 @@
 // lib/database.ts - UPDATED
 import { Pool } from 'pg'
 
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/upwork_assistant'
+
+
 const pool = new Pool({
   user: 'postgres',
+    connectionString: connectionString,
+ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
   host: 'localhost', 
   database: 'upwork_assistant',
   password: 'postgres',

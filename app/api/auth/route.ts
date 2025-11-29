@@ -4,6 +4,9 @@ import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
 import pool from '../../../lib/database'
 import { createSession, getCurrentUser } from '../../../lib/auth'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 
 export async function GET() {
   try {

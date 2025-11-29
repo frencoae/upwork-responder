@@ -1,6 +1,8 @@
 // app/api/jobs/route.ts - SINGLE UPDATED FILE
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '../../../lib/auth'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const professionalJobs = [
   {

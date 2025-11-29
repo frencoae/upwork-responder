@@ -4,6 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '../../../lib/auth'
 import pool from '../../../lib/database'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // Simple API Key based authentication (Direct API calls)
 async function makeUpworkApiCall(apiKey: string, endpoint: string) {

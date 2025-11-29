@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import pool from '../../../../lib/database'
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
