@@ -1,4 +1,4 @@
-// app/api/proposals/generate/route.ts
+// app/api/proposals/generate/route.ts - COMPLETE UPDATED CODE
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { getCurrentUser } from '../../../../lib/auth'
@@ -35,7 +35,9 @@ export async function POST(request: NextRequest) {
       basicInfo: {
         specialty: 'Full Stack Development',
         provisions: 'Web Applications, Mobile Apps, API Development',
-        hourlyRate: '$25-50'
+        hourlyRate: '$25-50',
+        name: user.name,
+        company: user.company_name || ''
       },
       proposalTemplates: [
         {
@@ -59,41 +61,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Select the best template based on job
+    const selectedTemplate = selectBestTemplate(jobDescription, userSettings.proposalTemplates)
+
     // Build advanced prompt with user's personal info
     const prompt = `
-PROFESSIONAL UPWORK PROPOSAL GENERATION
+ROLE: You are ${user.name}, a professional ${userSettings.basicInfo.specialty}.
 
-CLIENT JOB DETAILS:
-Job Title: ${jobTitle}
+JOB DETAILS:
+Title: ${jobTitle}
 Description: ${jobDescription}
-Budget: ${budget}
-Required Skills: ${skills?.join(', ') || 'Not specified'}
+Budget: ${budget || 'Not specified'}
+Required Skills: ${Array.isArray(skills) ? skills.join(', ') : skills || 'Not specified'}
 Client: ${clientInfo?.name || 'Unknown'} (Rating: ${clientInfo?.rating || 'N/A'})
 
-FREELANCER PROFILE:
-Name: ${user.name}
+YOUR PROFILE:
 Specialty: ${userSettings.basicInfo.specialty}
 Services: ${userSettings.basicInfo.provisions}
 Hourly Rate: ${userSettings.basicInfo.hourlyRate}
+Company: ${userSettings.basicInfo.company || 'Freelance Professional'}
 
-GENERATION INSTRUCTIONS:
-${userSettings.proposalTemplates[0]?.content || 'Write a professional proposal that addresses client needs and shows relevant experience.'}
+TEMPLATE INSTRUCTIONS:
+${selectedTemplate.content}
 
 SPECIFIC REQUIREMENTS:
-1. Address the client's main pain points from the job description
-2. Show relevant experience with similar projects
-3. Keep professional but friendly tone
-4. Include clear call-to-action for next steps
-5. Maximum 250 words
-6. Use the freelancer's name: ${user.name}
-7. Focus on providing value and solutions
+1. Address EXACT requirements from job description
+2. Show 2-3 relevant skills from: ${userSettings.basicInfo.provisions}
+3. Mention similar project experience briefly
+4. Ask 1-2 specific questions about the project
+5. Keep professional but friendly tone
+6. Maximum 250 words
+7. Include clear call-to-action
+8. Sign off as: ${user.name}
 
-Generate a proposal that will get high response rates and show genuine interest in the project.
+IMPORTANT: Do NOT make up facts about client. Only use information provided.
 `
 
     try {
       const completion = await openai.chat.completions.create({
-        model: userSettings.aiSettings.model,
+        model: userSettings.aiSettings.model || 'gpt-4',
         messages: [
           { 
             role: "system", 
@@ -101,8 +107,8 @@ Generate a proposal that will get high response rates and show genuine interest 
           },
           { role: "user", content: prompt }
         ],
-        max_tokens: userSettings.aiSettings.maxTokens,
-        temperature: userSettings.aiSettings.temperature,
+        max_tokens: userSettings.aiSettings.maxTokens || 600,
+        temperature: userSettings.aiSettings.temperature || 0.3,
       })
 
       const proposal = completion.choices[0]?.message?.content
@@ -111,37 +117,42 @@ Generate a proposal that will get high response rates and show genuine interest 
         throw new Error('AI could not generate proposal')
       }
 
+      // Clean up the proposal
+      const cleanedProposal = cleanProposal(proposal, user.name)
+
       // Save to database for AI training and history
       await pool.query(
         `INSERT INTO proposals (user_id, job_id, job_title, job_description, generated_proposal, ai_model, temperature, status, created_at) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'generated', NOW())`,
-        [user.id, jobId, jobTitle, jobDescription, proposal, userSettings.aiSettings.model, userSettings.aiSettings.temperature]
+        [user.id, jobId, jobTitle, jobDescription, cleanedProposal, 
+         userSettings.aiSettings.model, userSettings.aiSettings.temperature]
       )
 
       return NextResponse.json({ 
         success: true,
-        proposal,
+        proposal: cleanedProposal,
         message: 'Professional proposal generated successfully!',
         details: {
           model: userSettings.aiSettings.model,
           temperature: userSettings.aiSettings.temperature,
-          length: proposal.length
+          length: cleanedProposal.length,
+          template: selectedTemplate.title
         }
       })
 
-    } catch (aiError) {
+    } catch (aiError: any) {
       console.error('OpenAI error:', aiError)
-      // Fallback proposal if OpenAI fails
-      const fallbackProposal = `Dear ${clientInfo?.name || 'Client'},
-
-I am writing to express my interest in your "${jobTitle}" project. With my experience in ${skills?.slice(0, 2).join(' and ') || 'this field'}, I am confident I can help you achieve your objectives.
-
-I have successfully completed similar projects where I delivered [relevant achievement]. My approach focuses on [key methodology] to ensure [desired outcome].
-
-I would be happy to discuss how I can contribute to your project's success. Please let me know a convenient time for a quick call.
-
-Best regards,
-${user.name}`
+      
+      // Fallback proposal
+      const fallbackProposal = generateFallbackProposal(jobTitle, jobDescription, user.name, skills)
+      
+      // Save fallback to database
+      await pool.query(
+        `INSERT INTO proposals (user_id, job_id, job_title, job_description, generated_proposal, ai_model, temperature, status, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'generated_fallback', NOW())`,
+        [user.id, jobId, jobTitle, jobDescription, fallbackProposal, 
+         'fallback', 0]
+      )
 
       return NextResponse.json({ 
         success: true,
@@ -150,16 +161,74 @@ ${user.name}`
         details: {
           model: 'fallback',
           temperature: 0,
-          length: fallbackProposal.length
+          length: fallbackProposal.length,
+          template: 'fallback'
         }
       })
     }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Proposal generation error:', error)
     return NextResponse.json({ 
       error: 'Failed to generate proposal: ' + error.message 
     }, { status: 500 })
   }
+}
+
+// Helper function to select best template
+function selectBestTemplate(jobDescription: string, templates: any[]) {
+  if (!templates || templates.length === 0) {
+    return {
+      id: 'default',
+      title: 'Default Template',
+      content: 'Write a professional proposal addressing client needs.'
+    }
+  }
+  
+  // Simple keyword matching to select template
+  const description = jobDescription.toLowerCase()
+  
+  for (const template of templates) {
+    const title = template.title?.toLowerCase() || ''
+    if (title.includes('main') || title.includes('default')) {
+      return template
+    }
+  }
+  
+  return templates[0]
+}
+
+// Clean up AI-generated proposal
+function cleanProposal(proposal: string, userName: string): string {
+  let cleaned = proposal.trim()
+  
+  // Remove any markdown formatting
+  cleaned = cleaned.replace(/```json|```|\[|\]/g, '')
+  
+  // Ensure it ends with proper sign-off
+  if (!cleaned.includes(userName)) {
+    cleaned += `\n\nBest regards,\n${userName}`
+  }
+  
+  return cleaned
+}
+
+// Generate fallback proposal
+function generateFallbackProposal(jobTitle: string, jobDescription: string, userName: string, skills: any): string {
+  const skillText = Array.isArray(skills) ? skills.slice(0, 3).join(', ') : 'this field'
+  
+  return `Dear Client,
+
+I am writing to express my interest in your "${jobTitle}" project. 
+
+Based on the job description, I understand you need someone with experience in ${skillText}. I have successfully completed similar projects where I delivered high-quality results on time and within budget.
+
+My approach focuses on clear communication, regular updates, and attention to detail to ensure your project's success.
+
+I would be happy to discuss your requirements in more detail. Could you please share more information about the project timeline and specific deliverables?
+
+Looking forward to the opportunity to work with you.
+
+Best regards,
+${userName}`
 }

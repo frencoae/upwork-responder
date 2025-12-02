@@ -1,4 +1,4 @@
-// app/api/auth/route.ts
+// app/api/auth/route.ts - UPDATED SINGLE USER FIX
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
@@ -6,7 +6,6 @@ import pool from '../../../lib/database'
 import { createSession, getCurrentUser } from '../../../lib/auth'
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
 
 export async function GET() {
   try {
@@ -33,14 +32,16 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // ✅ SINGLE USER RESTRICTION
-    const existingUsers = await pool.query('SELECT COUNT(*) as count FROM users')
-    const userCount = parseInt(existingUsers.rows[0].count)
-    
-    if (userCount > 0 && action === 'signup') {
-      return NextResponse.json({ 
-        error: '❌ This application is for single user only. Please login with existing account.' 
-      }, { status: 400 })
+    // ✅ SINGLE USER RESTRICTION - STRICTER CHECK
+    if (action === 'signup') {
+      const existingUsers = await pool.query('SELECT COUNT(*) as count FROM users')
+      const userCount = parseInt(existingUsers.rows[0].count)
+      
+      if (userCount > 0) {
+        return NextResponse.json({ 
+          error: '❌ This application is for single user only. Please login with existing account.' 
+        }, { status: 403 })
+      }
     }
 
     if (action === 'signup') {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
       const existingUser = await pool.query(
         'SELECT * FROM users WHERE email = $1', 
-        [email]
+        [email.toLowerCase().trim()]
       )
       
       if (existingUser.rows.length > 0) {
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
 
       const result = await pool.query(
         'INSERT INTO users (name, email, password, company_name) VALUES ($1, $2, $3, $4) RETURNING id, name, email, company_name',
-        [name, email, hashedPassword, company_name || '']
+        [name, email.toLowerCase().trim(), hashedPassword, company_name || '']
       )
 
       const user = result.rows[0]
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     if (action === 'login') {
       const result = await pool.query(
         'SELECT * FROM users WHERE email = $1', 
-        [email]
+        [email.toLowerCase().trim()]
       )
       
       if (result.rows.length === 0) {
@@ -134,7 +135,6 @@ export async function POST(request: NextRequest) {
       error: 'Invalid action' 
     }, { status: 400 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('Auth POST error:', error.message)
     return NextResponse.json({ 

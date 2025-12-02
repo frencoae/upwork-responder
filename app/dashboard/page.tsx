@@ -238,76 +238,81 @@ ${user?.name || 'Professional Freelancer'}`)
   }
 
   // ✅ UPDATED: Send Proposal Function - Duplicate Check
-  const sendProposal = async () => {
-    if (!selectedJob || !generatedProposal) return
+const sendProposal = async () => {
+  if (!selectedJob || !generatedProposal) return
 
-    setSendingProposal(true)
-    
-    try {
-      // ✅ PEHLE HISTORY MEIN SAVE/UPDATE KAREN
-      const saveResponse = await fetch('/api/proposals/save', {
+  setSendingProposal(true)
+  
+  try {
+    // First save the proposal to history
+    const saveResponse = await fetch('/api/proposals/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobId: selectedJob.id,
+        jobTitle: selectedJob.title,
+        jobDescription: selectedJob.description,
+        clientInfo: selectedJob.client,
+        budget: selectedJob.budget,
+        skills: selectedJob.skills,
+        proposalText: generatedProposal,
+        status: 'sent'
+      })
+    })
+
+    const saveData = await saveResponse.json()
+
+    if (saveResponse.ok && saveData.success) {
+      // Then send the proposal to Upwork
+      const sendResponse = await fetch('/api/proposals/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId: selectedJob.id,
           jobTitle: selectedJob.title,
-          jobDescription: selectedJob.description,
-          clientInfo: selectedJob.client,
-          budget: selectedJob.budget,
-          skills: selectedJob.skills,
           proposalText: generatedProposal,
-          status: 'sent'
+          originalProposal: generatedProposal,
+          editReason: 'User reviewed and sent'
         })
       })
 
-      const saveData = await saveResponse.json()
+      const sendData = await sendResponse.json()
 
-      if (saveResponse.ok && saveData.success) {
-        // ✅ PHIR SEND KAREN (Real Upwork API integration ke liye)
-        const sendResponse = await fetch('/api/proposals/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jobId: selectedJob.id,
-            jobTitle: selectedJob.title,
-            proposalText: generatedProposal,
-            originalProposal: generatedProposal,
-            editReason: 'User reviewed and sent'
-          })
-        })
-
-        const sendData = await sendResponse.json()
-
-        if (sendResponse.ok && sendData.success) {
-          alert('✅ Proposal sent successfully! Saved to history.')
-          setShowPopup(false)
-          setSelectedJob(null)
-          setGeneratedProposal('')
-          setProposalGenerated(false)
-          
-          // Update stats
-          setStats(prev => ({
-            ...prev,
-            proposalsSent: prev.proposalsSent + 1
-          }))
+      if (sendResponse.ok && sendData.success) {
+        // Show appropriate message based on Upwork connection
+        if (sendData.upworkSent) {
+          alert('🎉 Proposal sent successfully to Upwork!')
         } else {
-          alert(sendData.error || 'Proposal sent (demo mode)! Saved to history.')
-          setShowPopup(false)
-          setStats(prev => ({
-            ...prev,
-            proposalsSent: prev.proposalsSent + 1
-          }))
+          alert('✅ Proposal saved and marked as sent (Upwork not connected)')
         }
+        
+        // Close popup and reset
+        setShowPopup(false)
+        setSelectedJob(null)
+        setGeneratedProposal('')
+        setProposalGenerated(false)
+        
+        // Update stats
+        setStats(prev => ({
+          ...prev,
+          proposalsSent: prev.proposalsSent + 1
+        }))
+        
+        // Refresh jobs list if needed
+        loadJobs()
       } else {
-        throw new Error(saveData.error || 'Failed to save proposal')
+        alert(sendData.error || 'Failed to send proposal')
       }
-    } catch (error) {
-      console.error('Proposal send error:', error)
-      alert('Failed to send proposal. Please try again.')
-    } finally {
-      setSendingProposal(false)
+    } else {
+      throw new Error(saveData.error || 'Failed to save proposal')
     }
+  } catch (error: any) {
+    console.error('Proposal send error:', error)
+    alert('Failed to send proposal: ' + error.message)
+  } finally {
+    setSendingProposal(false)
   }
+}
 
   if (loading) {
     return (
